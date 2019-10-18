@@ -1,7 +1,23 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 import React from 'react';
 import { shallow } from 'enzyme';
-import { describe, it } from 'mocha';
-import { expect } from 'chai';
 import sinon from 'sinon';
 
 import Dashboard from '../../../../src/dashboard/components/Dashboard';
@@ -23,7 +39,8 @@ describe('Dashboard', () => {
     actions: {
       addSliceToDashboard() {},
       removeSliceFromDashboard() {},
-      runQuery() {},
+      triggerQuery() {},
+      logEvent() {},
     },
     initMessages: [],
     dashboardState,
@@ -45,10 +62,28 @@ describe('Dashboard', () => {
 
   it('should render a DashboardBuilder', () => {
     const wrapper = setup();
-    expect(wrapper.find(DashboardBuilder)).to.have.length(1);
+    expect(wrapper.find(DashboardBuilder)).toHaveLength(1);
   });
 
   describe('refreshExcept', () => {
+    const overrideDashboardState = {
+      ...dashboardState,
+      filters: {
+        1: { region: [] },
+        2: { country_name: ['USA'] },
+        3: { region: [], country_name: ['USA'] },
+      },
+      refresh: true,
+    };
+
+    const overrideDashboardInfo = {
+      ...dashboardInfo,
+      metadata: {
+        ...dashboardInfo.metadata,
+        filter_immune_slice_fields: { [chartQueries[chartId].id]: ['region'] },
+      },
+    };
+
     const overrideCharts = {
       ...chartQueries,
       1001: {
@@ -65,15 +100,15 @@ describe('Dashboard', () => {
       },
     };
 
-    it('should call runQuery for all non-exempt slices', () => {
+    it('should call triggerQuery for all non-exempt slices', () => {
       const wrapper = setup({ charts: overrideCharts, slices: overrideSlices });
-      const spy = sinon.spy(props.actions, 'runQuery');
+      const spy = sinon.spy(props.actions, 'triggerQuery');
       wrapper.instance().refreshExcept('1001');
       spy.restore();
-      expect(spy.callCount).to.equal(Object.keys(overrideCharts).length - 1);
+      expect(spy.callCount).toBe(Object.keys(overrideCharts).length - 1);
     });
 
-    it('should not call runQuery for filter_immune_slices', () => {
+    it('should not call triggerQuery for filter_immune_slices', () => {
       const wrapper = setup({
         charts: overrideCharts,
         dashboardInfo: {
@@ -86,10 +121,36 @@ describe('Dashboard', () => {
           },
         },
       });
-      const spy = sinon.spy(props.actions, 'runQuery');
+      const spy = sinon.spy(props.actions, 'triggerQuery');
       wrapper.instance().refreshExcept();
       spy.restore();
-      expect(spy.callCount).to.equal(0);
+      expect(spy.callCount).toBe(0);
+    });
+
+    it('should not call triggerQuery for filter_immune_slice_fields', () => {
+      const wrapper = setup({
+        dashboardState: overrideDashboardState,
+        dashboardInfo: overrideDashboardInfo,
+      });
+      const spy = sinon.spy(props.actions, 'triggerQuery');
+      wrapper.instance().refreshExcept('1');
+      expect(spy.callCount).toBe(0);
+      spy.restore();
+    });
+
+    it('should call triggerQuery if filter has more filter-able fields', () => {
+      const wrapper = setup({
+        dashboardState: overrideDashboardState,
+        dashboardInfo: overrideDashboardInfo,
+      });
+      const spy = sinon.spy(props.actions, 'triggerQuery');
+
+      // if filter have additional fields besides immune ones,
+      // should apply filter.
+      wrapper.instance().refreshExcept('3');
+      expect(spy.callCount).toBe(1);
+
+      spy.restore();
     });
   });
 
@@ -107,7 +168,7 @@ describe('Dashboard', () => {
         layout: layoutWithExtraChart,
       });
       spy.restore();
-      expect(spy.callCount).to.equal(1);
+      expect(spy.callCount).toBe(1);
     });
 
     it('should call removeSliceFromDashboard if a slice is removed from the layout', () => {
@@ -121,7 +182,7 @@ describe('Dashboard', () => {
         layout: nextLayout,
       });
       spy.restore();
-      expect(spy.callCount).to.equal(1);
+      expect(spy.callCount).toBe(1);
     });
   });
 
@@ -146,13 +207,12 @@ describe('Dashboard', () => {
       });
       wrapper.instance().componentDidUpdate(prevProps);
       refreshExceptSpy.restore();
-      expect(refreshExceptSpy.callCount).to.equal(0);
+      expect(refreshExceptSpy.callCount).toBe(0);
     });
 
     it('should call refresh if a filter is added', () => {
       const wrapper = setup({ dashboardState: overrideDashboardState });
       const refreshExceptSpy = sinon.spy(wrapper.instance(), 'refreshExcept');
-      const prevProps = wrapper.instance().props;
       wrapper.setProps({
         dashboardState: {
           ...overrideDashboardState,
@@ -162,30 +222,26 @@ describe('Dashboard', () => {
           },
         },
       });
-      wrapper.instance().componentDidUpdate(prevProps);
       refreshExceptSpy.restore();
-      expect(refreshExceptSpy.callCount).to.equal(1);
+      expect(refreshExceptSpy.callCount).toBe(1);
     });
 
     it('should call refresh if a filter is removed', () => {
       const wrapper = setup({ dashboardState: overrideDashboardState });
       const refreshExceptSpy = sinon.spy(wrapper.instance(), 'refreshExcept');
-      const prevProps = wrapper.instance().props;
       wrapper.setProps({
         dashboardState: {
           ...overrideDashboardState,
           filters: {},
         },
       });
-      wrapper.instance().componentDidUpdate(prevProps);
       refreshExceptSpy.restore();
-      expect(refreshExceptSpy.callCount).to.equal(1);
+      expect(refreshExceptSpy.callCount).toBe(1);
     });
 
     it('should call refresh if a filter is changed', () => {
       const wrapper = setup({ dashboardState: overrideDashboardState });
       const refreshExceptSpy = sinon.spy(wrapper.instance(), 'refreshExcept');
-      const prevProps = wrapper.instance().props;
       wrapper.setProps({
         dashboardState: {
           ...overrideDashboardState,
@@ -195,15 +251,13 @@ describe('Dashboard', () => {
           },
         },
       });
-      wrapper.instance().componentDidUpdate(prevProps);
       refreshExceptSpy.restore();
-      expect(refreshExceptSpy.callCount).to.equal(1);
+      expect(refreshExceptSpy.callCount).toBe(1);
     });
 
     it('should not call refresh if filters change and refresh is false', () => {
       const wrapper = setup({ dashboardState: overrideDashboardState });
       const refreshExceptSpy = sinon.spy(wrapper.instance(), 'refreshExcept');
-      const prevProps = wrapper.instance().props;
       wrapper.setProps({
         dashboardState: {
           ...overrideDashboardState,
@@ -214,9 +268,8 @@ describe('Dashboard', () => {
           refresh: false,
         },
       });
-      wrapper.instance().componentDidUpdate(prevProps);
       refreshExceptSpy.restore();
-      expect(refreshExceptSpy.callCount).to.equal(0);
+      expect(refreshExceptSpy.callCount).toBe(0);
     });
 
     it('should not refresh filter_immune_slices', () => {
@@ -244,7 +297,7 @@ describe('Dashboard', () => {
       });
       wrapper.instance().componentDidUpdate(prevProps);
       refreshExceptSpy.restore();
-      expect(refreshExceptSpy.callCount).to.equal(0);
+      expect(refreshExceptSpy.callCount).toBe(0);
     });
   });
 });

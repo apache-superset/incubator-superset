@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 import React from 'react';
 import PropTypes from 'prop-types';
 import AceEditor from 'react-ace';
@@ -11,7 +29,7 @@ const langTools = ace.acequire('ace/ext/language_tools');
 
 const keywords = (
   'SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|AND|OR|GROUP|BY|ORDER|LIMIT|OFFSET|HAVING|AS|CASE|' +
-  'WHEN|ELSE|END|TYPE|LEFT|RIGHT|JOIN|ON|OUTER|DESC|ASC|UNION|CREATE|TABLE|PRIMARY|KEY|IF|' +
+  'WHEN|THEN|ELSE|END|TYPE|LEFT|RIGHT|JOIN|ON|OUTER|DESC|ASC|UNION|CREATE|TABLE|PRIMARY|KEY|IF|' +
   'FOREIGN|NOT|REFERENCES|DEFAULT|NULL|INNER|CROSS|NATURAL|DATABASE|DROP|GRANT|SUM|MAX|MIN|COUNT|' +
   'AVG|DISTINCT'
 );
@@ -30,7 +48,9 @@ const propTypes = {
   actions: PropTypes.object.isRequired,
   onBlur: PropTypes.func,
   sql: PropTypes.string.isRequired,
+  schemas: PropTypes.array,
   tables: PropTypes.array,
+  extendedTables: PropTypes.array,
   queryEditor: PropTypes.object.isRequired,
   height: PropTypes.string,
   hotkeys: PropTypes.arrayOf(PropTypes.shape({
@@ -44,7 +64,9 @@ const propTypes = {
 const defaultProps = {
   onBlur: () => {},
   onChange: () => {},
+  schemas: [],
   tables: [],
+  extendedTables: [],
 };
 
 class AceEditorWrapper extends React.PureComponent {
@@ -62,7 +84,9 @@ class AceEditorWrapper extends React.PureComponent {
     this.setAutoCompleter(this.props);
   }
   componentWillReceiveProps(nextProps) {
-    if (!areArraysShallowEqual(this.props.tables, nextProps.tables)) {
+    if (!areArraysShallowEqual(this.props.tables, nextProps.tables) ||
+      !areArraysShallowEqual(this.props.schemas, nextProps.schemas) ||
+      !areArraysShallowEqual(this.props.extendedTables, nextProps.extendedTables)) {
       this.setAutoCompleter(nextProps);
     }
     if (nextProps.sql !== this.props.sql) {
@@ -106,16 +130,36 @@ class AceEditorWrapper extends React.PureComponent {
     this.props.onChange(text);
   }
   getCompletions(aceEditor, session, pos, prefix, callback) {
-    callback(null, this.state.words);
+    const completer = {
+      insertMatch: (editor, data) => {
+        if (data.meta === 'table') {
+          this.props.actions.addTable(
+            this.props.queryEditor,
+            data.value,
+            this.props.queryEditor.schema,
+          );
+        }
+        editor.completer.insertMatch({ value: data.caption + ' ' });
+      },
+    };
+    const words = this.state.words.map(word => ({ ...word, completer }));
+    callback(null, words);
   }
   setAutoCompleter(props) {
-    // Loading table and column names as auto-completable words
+    // Loading schema, table and column names as auto-completable words
     let words = [];
+    const schemas = props.schemas || [];
+    schemas.forEach((s) => {
+      words.push({ name: s.label, value: s.value, score: 60, meta: 'schema' });
+    });
     const columns = {};
     const tables = props.tables || [];
+    const extendedTables = props.extendedTables || [];
     tables.forEach((t) => {
-      words.push({ name: t.name, value: t.name, score: 55, meta: 'table' });
-      const cols = t.columns || [];
+      const tableName = t.value;
+      words.push({ name: t.label, value: tableName, score: 55, meta: 'table' });
+      const extendedTable = extendedTables.find(et => et.name === tableName);
+      const cols = extendedTable && extendedTable.columns || [];
       cols.forEach((col) => {
         columns[col.name] = null;  // using an object as a unique set
       });
@@ -123,7 +167,6 @@ class AceEditorWrapper extends React.PureComponent {
     words = words.concat(Object.keys(columns).map(col => (
       { name: col, value: col, score: 50, meta: 'column' }
     )), sqlWords);
-
     this.setState({ words }, () => {
       const completer = {
         getCompletions: this.getCompletions.bind(this),
@@ -132,6 +175,20 @@ class AceEditorWrapper extends React.PureComponent {
         langTools.setCompleters([completer]);
       }
     });
+  }
+  getAceAnnotations() {
+    const validationResult = this.props.queryEditor.validationResult;
+    const resultIsReady = (validationResult && validationResult.completed);
+    if (resultIsReady && validationResult.errors.length > 0) {
+      const errors = validationResult.errors.map(err => ({
+        type: 'error',
+        row: err.line_number - 1,
+        column: err.start_column - 1,
+        text: err.message,
+      }));
+      return errors;
+    }
+    return [];
   }
   render() {
     return (
@@ -146,6 +203,7 @@ class AceEditorWrapper extends React.PureComponent {
         editorProps={{ $blockScrolling: true }}
         enableLiveAutocompletion
         value={this.state.sql}
+        annotations={this.getAceAnnotations()}
       />
     );
   }

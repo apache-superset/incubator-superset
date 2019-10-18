@@ -1,9 +1,28 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 /* eslint-env browser */
 import React from 'react';
 import PropTypes from 'prop-types';
 import { DropdownButton, MenuItem } from 'react-bootstrap';
 import { CellMeasurer, CellMeasurerCache, List } from 'react-virtualized';
 import SearchInput, { createFilter } from 'react-search-input';
+import { t } from '@superset-ui/translation';
 
 import AddSliceCard from './AddSliceCard';
 import AddSliceDragPreview from './dnd/AddSliceDragPreview';
@@ -12,7 +31,6 @@ import Loading from '../../components/Loading';
 import { CHART_TYPE, NEW_COMPONENT_SOURCE_TYPE } from '../util/componentTypes';
 import { NEW_CHART_ID, NEW_COMPONENTS_SOURCE_ID } from '../util/constants';
 import { slicePropShape } from '../util/propShapes';
-import { t } from '../../locales';
 
 const propTypes = {
   fetchAllSlices: PropTypes.func.isRequired,
@@ -35,10 +53,10 @@ const defaultProps = {
 
 const KEYS_TO_FILTERS = ['slice_name', 'viz_type', 'datasource_name'];
 const KEYS_TO_SORT = [
-  { key: 'slice_name', label: 'Name' },
-  { key: 'viz_type', label: 'Vis type' },
-  { key: 'datasource_name', label: 'Datasource' },
-  { key: 'changed_on', label: 'Recent' },
+  { key: 'slice_name', label: t('Name') },
+  { key: 'viz_type', label: t('Vis type') },
+  { key: 'datasource_name', label: t('Datasource') },
+  { key: 'changed_on', label: t('Recent') },
 ];
 
 const MARGIN_BOTTOM = 16;
@@ -152,7 +170,6 @@ class SliceAdder extends React.Component {
       chartId: cellData.slice_id,
       sliceName: cellData.slice_name,
     };
-
     return (
       <DragDroppable
         key={key}
@@ -184,7 +201,7 @@ class SliceAdder extends React.Component {
               innerRef={dragSourceRef}
               style={style}
               sliceName={cellData.slice_name}
-              lastModified={cellData.modified}
+              lastModified={cellData.changed_on_humanized}
               visType={cellData.viz_type}
               datasourceLink={cellData.datasource_link}
               isSelected={isSelected}
@@ -212,37 +229,34 @@ class SliceAdder extends React.Component {
           />
 
           <DropdownButton
-            title={`Sort by ${KEYS_TO_SORT[this.state.sortBy].label}`}
+            title={`按 ${KEYS_TO_SORT[this.state.sortBy].label} 排序`}
             onSelect={this.handleSelect}
             id="slice-adder-sortby"
           >
             {KEYS_TO_SORT.map((item, index) => (
               <MenuItem key={item.key} eventKey={index}>
-                Sort by {item.label}
+                按 {item.label} 排序
               </MenuItem>
             ))}
           </DropdownButton>
         </div>
-
         {this.props.isLoading && <Loading />}
-
-        {this.props.errorMessage && <div>{this.props.errorMessage}</div>}
-
-        {!this.props.isLoading &&
-          this.state.filteredSlices.length > 0 && (
-            <List
-              width={376}
-              height={slicesListHeight}
-              rowCount={this.state.filteredSlices.length}
-              deferredMeasurementCache={cache}
-              rowHeight={cache.rowHeight}
-              rowRenderer={this.rowRenderer}
-              searchTerm={this.state.searchTerm}
-              sortBy={this.state.sortBy}
-              selectedSliceIds={this.props.selectedSliceIds}
-            />
-          )}
-
+        {!this.props.isLoading && this.state.filteredSlices.length > 0 && (
+          <List
+            width={376}
+            height={slicesListHeight}
+            rowCount={this.state.filteredSlices.length}
+            deferredMeasurementCache={cache}
+            rowHeight={cache.rowHeight}
+            rowRenderer={this.rowRenderer}
+            searchTerm={this.state.searchTerm}
+            sortBy={this.state.sortBy}
+            selectedSliceIds={this.props.selectedSliceIds}
+          />
+        )}
+        {this.props.errorMessage && (
+          <div className="error-message">{this.props.errorMessage}</div>
+        )}
         {/* Drag preview is just a single fixed-position element */}
         <AddSliceDragPreview slices={this.state.filteredSlices} />
       </div>

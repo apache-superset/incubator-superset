@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 /* eslint-disable camelcase */
 import {
   ADD_SLICE,
@@ -5,14 +23,18 @@ import {
   ON_CHANGE,
   ON_SAVE,
   REMOVE_SLICE,
+  SET_COLOR_SCHEME,
   SET_EDIT_MODE,
   SET_MAX_UNDO_HISTORY_EXCEEDED,
   SET_UNSAVED_CHANGES,
-  TOGGLE_BUILDER_PANE,
+  SHOW_BUILDER_PANE,
   TOGGLE_EXPAND_SLICE,
   TOGGLE_FAVE_STAR,
+  TOGGLE_PUBLISHED,
   UPDATE_CSS,
+  SET_REFRESH_FREQUENCY,
 } from '../actions/dashboardState';
+import { BUILDER_PANE_TYPE } from '../util/constants';
 
 export default function dashboardStateReducer(state = {}, action) {
   const actionHandlers = {
@@ -50,19 +72,31 @@ export default function dashboardStateReducer(state = {}, action) {
     [TOGGLE_FAVE_STAR]() {
       return { ...state, isStarred: action.isStarred };
     },
+    [TOGGLE_PUBLISHED]() {
+      return { ...state, isPublished: action.isPublished };
+    },
     [SET_EDIT_MODE]() {
       return {
         ...state,
         editMode: action.editMode,
-        showBuilderPane: !!action.editMode,
+        builderPaneType: action.editMode
+          ? BUILDER_PANE_TYPE.ADD_COMPONENTS
+          : BUILDER_PANE_TYPE.NONE,
       };
     },
     [SET_MAX_UNDO_HISTORY_EXCEEDED]() {
       const { maxUndoHistoryExceeded = true } = action.payload;
       return { ...state, maxUndoHistoryExceeded };
     },
-    [TOGGLE_BUILDER_PANE]() {
-      return { ...state, showBuilderPane: !state.showBuilderPane };
+    [SHOW_BUILDER_PANE]() {
+      return { ...state, builderPaneType: action.builderPaneType };
+    },
+    [SET_COLOR_SCHEME]() {
+      return {
+        ...state,
+        colorScheme: action.colorScheme,
+        updatedColorScheme: true,
+      };
     },
     [TOGGLE_EXPAND_SLICE]() {
       const updatedExpandedSlices = { ...state.expandedSlices };
@@ -83,6 +117,8 @@ export default function dashboardStateReducer(state = {}, action) {
         hasUnsavedChanges: false,
         maxUndoHistoryExceeded: false,
         editMode: false,
+        builderPaneType: BUILDER_PANE_TYPE.NONE,
+        updatedColorScheme: false,
       };
     },
 
@@ -95,51 +131,46 @@ export default function dashboardStateReducer(state = {}, action) {
       let filters = state.filters;
       const { chart, col, vals: nextVals, merge, refresh } = action;
       const sliceId = chart.id;
-      const filterKeys = [
-        '__time_range',
-        '__time_col',
-        '__time_grain',
-        '__time_origin',
-        '__granularity',
-      ];
-      if (
-        filterKeys.indexOf(col) >= 0 ||
-        action.chart.formData.groupby.indexOf(col) !== -1
-      ) {
-        let newFilter = {};
-        if (!(sliceId in filters)) {
-          // if no filters existed for the slice, set them
-          newFilter = { [col]: nextVals };
-        } else if ((filters[sliceId] && !(col in filters[sliceId])) || !merge) {
-          // If no filters exist for this column, or we are overwriting them
-          newFilter = { ...filters[sliceId], [col]: nextVals };
-        } else if (filters[sliceId][col] instanceof Array) {
-          newFilter[col] = [...filters[sliceId][col], ...nextVals];
-        } else {
-          newFilter[col] = [filters[sliceId][col], ...nextVals];
-        }
-        filters = { ...filters, [sliceId]: newFilter };
+      let newFilter = {};
+      if (!(sliceId in filters)) {
+        // if no filters existed for the slice, set them
+        newFilter = { [col]: nextVals };
+      } else if ((filters[sliceId] && !(col in filters[sliceId])) || !merge) {
+        // If no filters exist for this column, or we are overwriting them
+        newFilter = { ...filters[sliceId], [col]: nextVals };
+      } else if (filters[sliceId][col] instanceof Array) {
+        newFilter[col] = [...filters[sliceId][col], ...nextVals];
+      } else {
+        newFilter[col] = [filters[sliceId][col], ...nextVals];
+      }
+      filters = { ...filters, [sliceId]: newFilter };
 
-        // remove any empty filters so they don't pollute the logs
-        Object.keys(filters).forEach(chartId => {
-          Object.keys(filters[chartId]).forEach(column => {
-            if (
-              !filters[chartId][column] ||
-              filters[chartId][column].length === 0
-            ) {
-              delete filters[chartId][column];
-            }
-          });
-          if (Object.keys(filters[chartId]).length === 0) {
-            delete filters[chartId];
+      // remove any empty filters so they don't pollute the logs
+      Object.keys(filters).forEach(chartId => {
+        Object.keys(filters[chartId]).forEach(column => {
+          if (
+            !filters[chartId][column] ||
+            filters[chartId][column].length === 0
+          ) {
+            delete filters[chartId][column];
           }
         });
-      }
+        if (Object.keys(filters[chartId]).length === 0) {
+          delete filters[chartId];
+        }
+      });
       return { ...state, filters, refresh };
     },
     [SET_UNSAVED_CHANGES]() {
       const { hasUnsavedChanges } = action.payload;
       return { ...state, hasUnsavedChanges };
+    },
+    [SET_REFRESH_FREQUENCY]() {
+      return {
+        ...state,
+        refreshFrequency: action.refreshFrequency,
+        hasUnsavedChanges: action.isPersistent,
+      };
     },
   };
 

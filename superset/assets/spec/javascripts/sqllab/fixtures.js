@@ -1,5 +1,23 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 import sinon from 'sinon';
-import * as actions from '../../../src/SqlLab/actions';
+import * as actions from '../../../src/SqlLab/actions/sqlLab';
 
 export const mockedActions = sinon.stub(Object.assign({}, actions));
 
@@ -20,32 +38,24 @@ export const table = {
   indexes: [
     {
       unique: true,
-      column_names: [
-        'username',
-      ],
+      column_names: ['username'],
       type: 'UNIQUE',
       name: 'username',
     },
     {
       unique: true,
-      column_names: [
-        'email',
-      ],
+      column_names: ['email'],
       type: 'UNIQUE',
       name: 'email',
     },
     {
       unique: false,
-      column_names: [
-        'created_by_fk',
-      ],
+      column_names: ['created_by_fk'],
       name: 'created_by_fk',
     },
     {
       unique: false,
-      column_names: [
-        'changed_by_fk',
-      ],
+      column_names: ['changed_by_fk'],
       name: 'changed_by_fk',
     },
   ],
@@ -70,13 +80,9 @@ export const table = {
       name: 'first_name',
       keys: [
         {
-          column_names: [
-            'first_name',
-          ],
+          column_names: ['first_name'],
           name: 'slices_ibfk_1',
-          referred_columns: [
-            'id',
-          ],
+          referred_columns: ['id'],
           referred_table: 'datasources',
           type: 'fk',
           referred_schema: 'carapal',
@@ -84,9 +90,7 @@ export const table = {
         },
         {
           unique: false,
-          column_names: [
-            'druid_datasource_id',
-          ],
+          column_names: ['druid_datasource_id'],
           type: 'index',
           name: 'druid_datasource_id',
         },
@@ -175,6 +179,13 @@ export const defaultQueryEditor = {
   selectedText: null,
   sql: 'SELECT *\nFROM\nWHERE',
   title: 'Untitled Query',
+  schemaOptions: [
+    {
+      value: 'main',
+      label: 'main',
+      title: 'main',
+    },
+  ],
 };
 export const queries = [
   {
@@ -205,21 +216,35 @@ export const queries = [
     serverId: 141,
     resultsKey: null,
     results: {
-      columns: [{
-        is_date: true,
-        is_dim: false,
-        name: 'ds',
-        type: 'STRING',
-      }, {
-        is_date: false,
-        is_dim: true,
-        name: 'gender',
-        type: 'STRING',
-      }],
-      data: [
-        { col1: 0, col2: 1 },
-        { col1: 2, col2: 3 },
+      columns: [
+        {
+          is_date: true,
+          is_dim: false,
+          name: 'ds',
+          type: 'STRING',
+        },
+        {
+          is_date: false,
+          is_dim: true,
+          name: 'gender',
+          type: 'STRING',
+        },
       ],
+      selected_columns: [
+        {
+          is_date: true,
+          is_dim: false,
+          name: 'ds',
+          type: 'STRING',
+        },
+        {
+          is_date: false,
+          is_dim: true,
+          name: 'gender',
+          type: 'STRING',
+        },
+      ],
+      data: [{ col1: 0, col2: 1 }, { col1: 2, col2: 3 }],
     },
   },
   {
@@ -237,12 +262,11 @@ export const queries = [
     changedOn: 1476910572000,
     tempTable: null,
     userId: 1,
-    executedSql: (
+    executedSql:
       'SELECT * \nFROM (SELECT created_on, changed_on, id, slice_name, ' +
       'druid_datasource_id, table_id, datasource_type, datasource_name, ' +
       'viz_type, params, created_by_fk, changed_by_fk, description, ' +
-      'cache_timeout, perm\nFROM superset.slices) AS inner_qry \n LIMIT 1000'
-    ),
+      'cache_timeout, perm\nFROM superset.slices) AS inner_qry \n LIMIT 1000',
     changed_on: '2016-10-19T20:56:12',
     rows: 42,
     endDttm: 1476910579693,
@@ -261,72 +285,89 @@ export const queryWithBadColumns = {
   ...queries[0],
   results: {
     data: queries[0].results.data,
-    columns: [{
-      is_date: true,
-      is_dim: false,
-      name: 'COUNT(*)',
-      type: 'STRING',
-    }, {
-      is_date: false,
-      is_dim: true,
-      name: 'this_col_is_ok',
-      type: 'STRING',
-    }, {
-      is_date: false,
-      is_dim: true,
-      name: 'a',
-      type: 'STRING',
-    }, {
-      is_date: false,
-      is_dim: true,
-      name: '1',
-      type: 'STRING',
-    }, {
-      is_date: false,
-      is_dim: true,
-      name: '123',
-      type: 'STRING',
-    }, {
-      is_date: false,
-      is_dim: true,
-      name: 'CASE WHEN 1=1 THEN 1 ELSE 0 END',
-      type: 'STRING',
-    }],
+    selected_columns: [
+      {
+        is_date: true,
+        is_dim: false,
+        name: 'COUNT(*)',
+        type: 'STRING',
+      },
+      {
+        is_date: false,
+        is_dim: true,
+        name: 'this_col_is_ok',
+        type: 'STRING',
+      },
+      {
+        is_date: false,
+        is_dim: true,
+        name: 'a',
+        type: 'STRING',
+      },
+      {
+        is_date: false,
+        is_dim: true,
+        name: '1',
+        type: 'STRING',
+      },
+      {
+        is_date: false,
+        is_dim: true,
+        name: '123',
+        type: 'STRING',
+      },
+      {
+        is_date: false,
+        is_dim: true,
+        name: 'CASE WHEN 1=1 THEN 1 ELSE 0 END',
+        type: 'STRING',
+      },
+    ],
   },
 };
 export const databases = {
-  result: [{
-    allow_ctas: true,
-    allow_dml: true,
-    allow_run_async: false,
-    allow_run_sync: true,
-    database_name: 'main',
-    expose_in_sqllab: true,
-    force_ctas_schema: '',
-    id: 1,
-  }, {
-    allow_ctas: true,
-    allow_dml: false,
-    allow_run_async: true,
-    allow_run_sync: true,
-    database_name: 'Presto - Gold',
-    expose_in_sqllab: true,
-    force_ctas_schema: 'tmp',
-    id: 208,
-  }],
+  result: [
+    {
+      allow_ctas: true,
+      allow_dml: true,
+      allow_run_async: false,
+      database_name: 'main',
+      expose_in_sqllab: true,
+      force_ctas_schema: '',
+      id: 1,
+    },
+    {
+      allow_ctas: true,
+      allow_dml: false,
+      allow_run_async: true,
+      database_name: 'Presto - Gold',
+      expose_in_sqllab: true,
+      force_ctas_schema: 'tmp',
+      id: 208,
+    },
+  ],
 };
 export const tables = {
-  tableLength: 3,
-  options: [{
-    value: 'birth_names',
-    label: 'birth_names',
-  }, {
-    value: 'energy_usage',
-    label: 'energy_usage',
-  }, {
-    value: 'wb_health_population',
-    label: 'wb_health_population',
-  }],
+  options: [
+    {
+      value: 'birth_names',
+      schema: 'main',
+      label: 'birth_names',
+      title: 'birth_names',
+    },
+    {
+      value: 'energy_usage',
+      schema: 'main',
+      label: 'energy_usage',
+      title: 'energy_usage',
+    },
+    {
+      value: 'wb_health_population',
+      schema: 'main',
+      label: 'wb_health_population',
+      title: 'wb_health_population',
+    },
+  ],
 };
 
 export const stoppedQuery = {
@@ -352,11 +393,13 @@ export const runningQuery = {
   id: 'ryhMUZCGb',
   progress: 90,
   state: 'running',
+  startDttm: Date.now() - 500,
 };
 export const cachedQuery = Object.assign({}, queries[0], { cached: true });
 
 export const initialState = {
   sqlLab: {
+    offline: false,
     alerts: [],
     queries: {},
     databases: {},
@@ -368,9 +411,16 @@ export const initialState = {
     activeSouthPaneTab: 'Results',
   },
   messageToasts: [],
+  common: {
+    conf: {
+      DEFAULT_SQLLAB_LIMIT: 1000,
+      SQL_MAX_ROW: 100000,
+    },
+  },
 };
 
 export const query = {
+  id: 'clientId2353',
   dbId: 1,
   sql: 'SELECT * FROM something',
   sqlEditorId: defaultQueryEditor.id,

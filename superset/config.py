@@ -1,4 +1,19 @@
-# -*- coding: utf-8 -*-
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=C,R,W
 """The main config file for Superset
 
@@ -6,17 +21,15 @@ All configuration in this file can be overridden by providing a superset_config
 in your PYTHONPATH as there is a ``from superset_config import *``
 at the end of this file.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 from collections import OrderedDict
 import imp
+import importlib.util
 import json
+import logging
 import os
 import sys
 
+from celery.schedules import crontab
 from dateutil import tz
 from flask_appbuilder.security.manager import AUTH_DB
 
@@ -26,18 +39,18 @@ from superset.stats_logger import DummyStatsLogger
 STATS_LOGGER = DummyStatsLogger()
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-if 'SUPERSET_HOME' in os.environ:
-    DATA_DIR = os.environ['SUPERSET_HOME']
+if "SUPERSET_HOME" in os.environ:
+    DATA_DIR = os.environ["SUPERSET_HOME"]
 else:
-    DATA_DIR = os.path.join(os.path.expanduser('~'), '.superset')
+    DATA_DIR = os.path.join(os.path.expanduser("~"), ".superset")
 
 # ---------------------------------------------------------
 # Superset specific config
 # ---------------------------------------------------------
-PACKAGE_DIR = os.path.join(BASE_DIR, 'static', 'assets')
-PACKAGE_FILE = os.path.join(PACKAGE_DIR, 'package.json')
+PACKAGE_DIR = os.path.join(BASE_DIR, "static", "assets")
+PACKAGE_FILE = os.path.join(PACKAGE_DIR, "package.json")
 with open(PACKAGE_FILE) as package_file:
-    VERSION_STRING = json.load(package_file)['version']
+    VERSION_STRING = json.load(package_file)["version"]
 
 ROW_LIMIT = 50000
 VIZ_ROW_LIMIT = 10000
@@ -46,9 +59,15 @@ FILTER_SELECT_ROW_LIMIT = 10000
 SUPERSET_WORKERS = 2  # deprecated
 SUPERSET_CELERY_WORKERS = 32  # deprecated
 
-SUPERSET_WEBSERVER_ADDRESS = '0.0.0.0'
+SUPERSET_WEBSERVER_ADDRESS = "0.0.0.0"
 SUPERSET_WEBSERVER_PORT = 8088
-SUPERSET_WEBSERVER_TIMEOUT = 60  # deprecated
+
+# This is an important setting, and should be lower than your
+# [load balancer / proxy / envoy / kong / ...] timeout settings.
+# You should also make sure to configure your WSGI server
+# (gunicorn, nginx, apache, ...) timeout setting to be <= to this setting
+SUPERSET_WEBSERVER_TIMEOUT = 60
+
 SUPERSET_DASHBOARD_POSITION_DATA_LIMIT = 65535
 EMAIL_NOTIFICATIONS = False
 CUSTOM_SECURITY_MANAGER = None
@@ -56,10 +75,11 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 # ---------------------------------------------------------
 
 # Your App secret key
-SECRET_KEY = '\2\1thisismyscretkey\1\2\e\y\y\h'  # noqa
+SECRET_KEY = "\2\1thisismyscretkey\1\2\e\y\y\h"  # noqa
 
 # The SQLAlchemy connection string.
-SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(DATA_DIR, 'superset.db')
+SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:123qwe!@#4@10.0.197.189/superset'
+#SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(DATA_DIR, "superset.db")
 # SQLALCHEMY_DATABASE_URI = 'mysql://myapp@localhost/myapp'
 # SQLALCHEMY_DATABASE_URI = 'postgresql://root:password@localhost/myapp'
 
@@ -79,26 +99,35 @@ QUERY_SEARCH_LIMIT = 1000
 WTF_CSRF_ENABLED = True
 
 # Add endpoints that need to be exempt from CSRF protection
-WTF_CSRF_EXEMPT_LIST = []
+WTF_CSRF_EXEMPT_LIST = ["superset.views.core.log"]
 
 # Whether to run the web server in debug mode or not
-DEBUG = False
+DEBUG = os.environ.get("FLASK_ENV") == "development"
 FLASK_USE_RELOAD = True
 
-# Whether to show the stacktrace on 500 error
+# Superset allows server-side python stacktraces to be surfaced to the
+# user when this feature is on. This may has security implications
+# and it's more secure to turn it off in production settings.
 SHOW_STACKTRACE = True
 
-# Extract and use X-Forwarded-For/X-Forwarded-Proto headers?
+# Use all X-Forwarded headers when ENABLE_PROXY_FIX is True.
+# When proxying to a different port, set "x_port" to 0 to avoid downstream issues.
 ENABLE_PROXY_FIX = False
+PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1, "x_prefix": 1}
 
 # ------------------------------
 # GLOBALS FOR APP Builder
 # ------------------------------
 # Uncomment to setup Your App name
-APP_NAME = 'Superset'
+APP_NAME = "贵州住建云BI系统"
 
 # Uncomment to setup an App icon
-APP_ICON = '/static/assets/images/superset-logo@2x.png'
+APP_ICON = "/static/assets/images/logo.png"
+APP_ICON_WIDTH = 126
+
+# Uncomment to specify where clicking the logo would take the user
+# e.g. setting it to '/welcome' would take the user to '/superset/welcome'
+LOGO_TARGET_PATH = None
 
 # Druid query timezone
 # tz.tzutc() : Using utc timezone
@@ -109,7 +138,7 @@ APP_ICON = '/static/assets/images/superset-logo@2x.png'
 # other tz can be overridden by providing a local_config
 DRUID_IS_ACTIVE = True
 DRUID_TZ = tz.tzutc()
-DRUID_ANALYSIS_TYPES = ['cardinality']
+DRUID_ANALYSIS_TYPES = ["cardinality"]
 
 # ----------------------------------------------------
 # AUTHENTICATION CONFIG
@@ -138,10 +167,8 @@ AUTH_TYPE = AUTH_DB
 
 # Uncomment to setup OpenID providers example for OpenID authentication
 # OPENID_PROVIDERS = [
-#    { 'name': 'Yahoo', 'url': 'https://me.yahoo.com' },
-#    { 'name': 'AOL', 'url': 'http://openid.aol.com/<username>' },
-#    { 'name': 'Flickr', 'url': 'http://www.flickr.com/<username>' },
-#    { 'name': 'MyOpenID', 'url': 'https://www.myopenid.com' }]
+#    { 'name': 'Yahoo', 'url': 'https://open.login.yahoo.com/' },
+#    { 'name': 'Flickr', 'url': 'https://www.flickr.com/<username>' },
 
 # ---------------------------------------------------
 # Roles config
@@ -155,52 +182,90 @@ PUBLIC_ROLE_LIKE_GAMMA = False
 # Babel config for translations
 # ---------------------------------------------------
 # Setup default language
-BABEL_DEFAULT_LOCALE = 'en'
+BABEL_DEFAULT_LOCALE = "zh"
 # Your application default translation path
-BABEL_DEFAULT_FOLDER = 'superset/translations'
+BABEL_DEFAULT_FOLDER = "superset/translations"
 # The allowed translation for you app
 LANGUAGES = {
-    'en': {'flag': 'us', 'name': 'English'},
-    'it': {'flag': 'it', 'name': 'Italian'},
-    'fr': {'flag': 'fr', 'name': 'French'},
-    'zh': {'flag': 'cn', 'name': 'Chinese'},
-    'ja': {'flag': 'jp', 'name': 'Japanese'},
-    'de': {'flag': 'de', 'name': 'German'},
-    'pt': {'flag': 'pt', 'name': 'Portuguese'},
-    'pt_BR': {'flag': 'br', 'name': 'Brazilian Portuguese'},
-    'ru': {'flag': 'ru', 'name': 'Russian'},
+    # "it": {"flag": "it", "name": "Italian"},
+    # "fr": {"flag": "fr", "name": "French"},
+    "zh": {"flag": "cn", "name": "Chinese"},
+    #"en": {"flag": "us", "name": "English"},
+    # "ja": {"flag": "jp", "name": "Japanese"},
+    # "de": {"flag": "de", "name": "German"},
+    # "pt": {"flag": "pt", "name": "Portuguese"},
+    # "pt_BR": {"flag": "br", "name": "Brazilian Portuguese"},
+    # "ru": {"flag": "ru", "name": "Russian"},
+    # "ko": {"flag": "kr", "name": "Korean"},
 }
+
+# ---------------------------------------------------
+# Feature flags
+# ---------------------------------------------------
+# Feature flags that are set by default go here. Their values can be
+# overwritten by those specified under FEATURE_FLAGS in super_config.py
+# For example, DEFAULT_FEATURE_FLAGS = { 'FOO': True, 'BAR': False } here
+# and FEATURE_FLAGS = { 'BAR': True, 'BAZ': True } in superset_config.py
+# will result in combined feature flags of { 'FOO': True, 'BAR': True, 'BAZ': True }
+DEFAULT_FEATURE_FLAGS = {
+    # Experimental feature introducing a client (browser) cache
+    "CLIENT_CACHE": False,
+    "ENABLE_EXPLORE_JSON_CSRF_PROTECTION": False,
+}
+
+# A function that receives a dict of all feature flags
+# (DEFAULT_FEATURE_FLAGS merged with FEATURE_FLAGS)
+# can alter it, and returns a similar dict. Note the dict of feature
+# flags passed to the function is a deepcopy of the dict in the config,
+# and can therefore be mutated without side-effect
+#
+# GET_FEATURE_FLAGS_FUNC can be used to implement progressive rollouts,
+# role-based features, or a full on A/B testing framework.
+#
+# from flask import g, request
+# def GET_FEATURE_FLAGS_FUNC(feature_flags_dict):
+#     feature_flags_dict['some_feature'] = g.user and g.user.id == 5
+#     return feature_flags_dict
+GET_FEATURE_FLAGS_FUNC = None
+
+
 # ---------------------------------------------------
 # Image and file configuration
 # ---------------------------------------------------
 # The file upload folder, when using models with files
-UPLOAD_FOLDER = BASE_DIR + '/app/static/uploads/'
+UPLOAD_FOLDER = BASE_DIR + "/app/static/uploads/"
 
 # The image upload folder, when using models with images
-IMG_UPLOAD_FOLDER = BASE_DIR + '/app/static/uploads/'
+IMG_UPLOAD_FOLDER = BASE_DIR + "/app/static/uploads/"
 
 # The image upload url, when using models with images
-IMG_UPLOAD_URL = '/static/uploads/'
+IMG_UPLOAD_URL = "/static/uploads/"
 # Setup image size default is (300, 200, True)
 # IMG_SIZE = (300, 200, True)
 
 CACHE_DEFAULT_TIMEOUT = 60 * 60 * 24
-CACHE_CONFIG = {'CACHE_TYPE': 'null'}
-TABLE_NAMES_CACHE_CONFIG = {'CACHE_TYPE': 'null'}
+CACHE_CONFIG = {"CACHE_TYPE": "null"}
+TABLE_NAMES_CACHE_CONFIG = {"CACHE_TYPE": "null"}
 
 # CORS Options
 ENABLE_CORS = False
 CORS_OPTIONS = {}
 
+# Chrome allows up to 6 open connections per domain at a time. When there are more
+# than 6 slices in dashboard, a lot of time fetch requests are queued up and wait for
+# next available socket. PR #5039 is trying to allow domain sharding for Superset,
+# and this feature will be enabled by configuration only (by default Superset
+# doesn't allow cross-domain request).
+SUPERSET_WEBSERVER_DOMAINS = None
+
 # Allowed format types for upload on Database view
 # TODO: Add processing of other spreadsheet formats (xls, xlsx etc)
-ALLOWED_EXTENSIONS = set(['csv'])
+ALLOWED_EXTENSIONS = set(["csv"])
 
-# CSV Options: key/value pairs that will be passed as argument to DataFrame.to_csv method
+# CSV Options: key/value pairs that will be passed as argument to DataFrame.to_csv
+# method.
 # note: index option should not be overridden
-CSV_EXPORT = {
-    'encoding': 'utf-8',
-}
+CSV_EXPORT = {"encoding": "utf-8"}
 
 # ---------------------------------------------------
 # Time grain configurations
@@ -243,22 +308,22 @@ DRUID_DATA_SOURCE_BLACKLIST = []
 # --------------------------------------------------
 # Modules, datasources and middleware to be registered
 # --------------------------------------------------
-DEFAULT_MODULE_DS_MAP = OrderedDict([
-    ('superset.connectors.sqla.models', ['SqlaTable']),
-    ('superset.connectors.druid.models', ['DruidDatasource']),
-])
+DEFAULT_MODULE_DS_MAP = OrderedDict(
+    [
+        ("superset.connectors.sqla.models", ["SqlaTable"]),
+        ("superset.connectors.druid.models", ["DruidDatasource"]),
+    ]
+)
 ADDITIONAL_MODULE_DS_MAP = {}
 ADDITIONAL_MIDDLEWARE = []
 
-"""
-1) http://docs.python-guide.org/en/latest/writing/logging/
-2) https://docs.python.org/2/library/logging.config.html
-"""
+# 1) https://docs.python-guide.org/writing/logging/
+# 2) https://docs.python.org/2/library/logging.config.html
 
 # Console Log Settings
 
-LOG_FORMAT = '%(asctime)s:%(levelname)s:%(name)s:%(message)s'
-LOG_LEVEL = 'DEBUG'
+LOG_FORMAT = "%(asctime)s:%(levelname)s:%(name)s:%(message)s"
+LOG_LEVEL = "DEBUG"
 
 # ---------------------------------------------------
 # Enable Time Rotate Log Handler
@@ -266,20 +331,48 @@ LOG_LEVEL = 'DEBUG'
 # LOG_LEVEL = DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 ENABLE_TIME_ROTATE = False
-TIME_ROTATE_LOG_LEVEL = 'DEBUG'
-FILENAME = os.path.join(DATA_DIR, 'superset.log')
-ROLLOVER = 'midnight'
+TIME_ROTATE_LOG_LEVEL = "DEBUG"
+FILENAME = os.path.join(DATA_DIR, "superset.log")
+ROLLOVER = "midnight"
 INTERVAL = 1
 BACKUP_COUNT = 30
 
-# Set this API key to enable Mapbox visualizations
-MAPBOX_API_KEY = os.environ.get('MAPBOX_API_KEY', '')
+# Custom logger for auditing queries. This can be used to send ran queries to a
+# structured immutable store for auditing purposes. The function is called for
+# every query ran, in both SQL Lab and charts/dashboards.
+# def QUERY_LOGGER(
+#     database,
+#     query,
+#     schema=None,
+#     user=None,
+#     client=None,
+#     security_manager=None,
+# ):
+#     pass
 
-# Maximum number of rows returned in the SQL editor
-SQL_MAX_ROW = 1000
+# Set this API key to enable Mapbox visualizations
+MAPBOX_API_KEY = os.environ.get("MAPBOX_API_KEY", "")
+
+# Maximum number of rows returned from a database
+# in async mode, no more than SQL_MAX_ROW will be returned and stored
+# in the results backend. This also becomes the limit when exporting CSVs
+SQL_MAX_ROW = 100000
+
+# Maximum number of rows displayed in SQL Lab UI
+# Is set to avoid out of memory/localstorage issues in browsers. Does not affect
+# exported CSVs
+DISPLAY_MAX_ROW = 10000
+
+# Default row limit for SQL Lab queries. Is overridden by setting a new limit in
+# the SQL Lab UI
+DEFAULT_SQLLAB_LIMIT = 1000
 
 # Maximum number of tables/views displayed in the dropdown window in SQL Lab.
 MAX_TABLE_NAMES = 3000
+
+# Adds a warning message on sqllab save query and schedule query modals.
+SQLLAB_SAVE_WARNING_MESSAGE = None
+SQLLAB_SCHEDULE_WARNING_MESSAGE = None
 
 # If defined, shows this text in an alert-warning box in the navbar
 # one example use case may be "STAGING" to make it clear that this is
@@ -289,35 +382,49 @@ WARNING_MSG = None
 # Default celery config is to use SQLA as a broker, in a production setting
 # you'll want to use a proper broker as specified here:
 # http://docs.celeryproject.org/en/latest/getting-started/brokers/index.html
-"""
-# Example:
-class CeleryConfig(object):
-  BROKER_URL = 'sqla+sqlite:///celerydb.sqlite'
-  CELERY_IMPORTS = ('superset.sql_lab', )
-  CELERY_RESULT_BACKEND = 'db+sqlite:///celery_results.sqlite'
-  CELERY_ANNOTATIONS = {'tasks.add': {'rate_limit': '10/s'}}
-  CELERYD_LOG_LEVEL = 'DEBUG'
-  CELERYD_PREFETCH_MULTIPLIER = 1
-  CELERY_ACKS_LATE = True
-CELERY_CONFIG = CeleryConfig
-"""
-CELERY_CONFIG = None
-SQL_CELERY_DB_FILE_PATH = os.path.join(DATA_DIR, 'celerydb.sqlite')
-SQL_CELERY_RESULTS_DB_FILE_PATH = os.path.join(DATA_DIR, 'celery_results.sqlite')
 
-# static http headers to be served by your Superset server.
-# This header prevents iFrames from other domains and
-# "clickjacking" as a result
-HTTP_HEADERS = {'X-Frame-Options': 'SAMEORIGIN'}
-# If you need to allow iframes from other domains (and are
-# aware of the risks), you can disable this header:
-# HTTP_HEADERS = {}
+
+class CeleryConfig(object):
+    BROKER_URL = "sqla+sqlite:///celerydb.sqlite"
+    CELERY_IMPORTS = ("superset.sql_lab", "superset.tasks")
+    CELERY_RESULT_BACKEND = "db+sqlite:///celery_results.sqlite"
+    CELERYD_LOG_LEVEL = "DEBUG"
+    CELERYD_PREFETCH_MULTIPLIER = 1
+    CELERY_ACKS_LATE = True
+    CELERY_ANNOTATIONS = {
+        "sql_lab.get_sql_results": {"rate_limit": "100/s"},
+        "email_reports.send": {
+            "rate_limit": "1/s",
+            "time_limit": 120,
+            "soft_time_limit": 150,
+            "ignore_result": True,
+        },
+    }
+    CELERYBEAT_SCHEDULE = {
+        "email_reports.schedule_hourly": {
+            "task": "email_reports.schedule_hourly",
+            "schedule": crontab(minute=1, hour="*"),
+        }
+    }
+
+
+CELERY_CONFIG = CeleryConfig
+
+# Set celery config to None to disable all the above configuration
+# CELERY_CONFIG = None
+
+# Additional static HTTP headers to be served by your Superset server. Note
+# Flask-Talisman aplies the relevant security HTTP headers.
+HTTP_HEADERS = {}
 
 # The db id here results in selecting this one as a default in SQL Lab
 DEFAULT_DB_ID = None
 
 # Timeout duration for SQL Lab synchronous queries
 SQLLAB_TIMEOUT = 30
+
+# Timeout duration for SQL Lab query validation
+SQLLAB_VALIDATION_TIMEOUT = 10
 
 # SQLLAB_DEFAULT_DBID
 SQLLAB_DEFAULT_DBID = None
@@ -337,7 +444,7 @@ CSV_TO_HIVE_UPLOAD_S3_BUCKET = None
 
 # The directory within the bucket specified above that will
 # contain all the external tables
-CSV_TO_HIVE_UPLOAD_DIRECTORY = 'EXTERNAL_HIVE_TABLES/'
+CSV_TO_HIVE_UPLOAD_DIRECTORY = "EXTERNAL_HIVE_TABLES/"
 
 # The namespace within hive where the tables created from
 # uploading CSVs will be stored.
@@ -351,9 +458,9 @@ JINJA_CONTEXT_ADDONS = {}
 
 # Roles that are controlled by the API / Superset and should not be changes
 # by humans.
-ROBOT_PERMISSION_ROLES = ['Public', 'Gamma', 'Alpha', 'Admin', 'sql_lab']
+ROBOT_PERMISSION_ROLES = ["Public", "Gamma", "Alpha", "Admin", "sql_lab"]
 
-CONFIG_PATH_ENV_VAR = 'SUPERSET_CONFIG_PATH'
+CONFIG_PATH_ENV_VAR = "SUPERSET_CONFIG_PATH"
 
 # If a callable is specified, it will be called at app startup while passing
 # a reference to the Flask app. This can be used to alter the Flask app
@@ -367,32 +474,32 @@ ENABLE_ACCESS_REQUEST = False
 
 # smtp server configuration
 EMAIL_NOTIFICATIONS = False  # all the emails are sent using dryrun
-SMTP_HOST = 'localhost'
+SMTP_HOST = "localhost"
 SMTP_STARTTLS = True
 SMTP_SSL = False
-SMTP_USER = 'superset'
+SMTP_USER = "superset"
 SMTP_PORT = 25
-SMTP_PASSWORD = 'superset'
-SMTP_MAIL_FROM = 'superset@superset.com'
+SMTP_PASSWORD = "superset"
+SMTP_MAIL_FROM = "superset@superset.com"
 
 if not CACHE_DEFAULT_TIMEOUT:
-    CACHE_DEFAULT_TIMEOUT = CACHE_CONFIG.get('CACHE_DEFAULT_TIMEOUT')
+    CACHE_DEFAULT_TIMEOUT = CACHE_CONFIG.get("CACHE_DEFAULT_TIMEOUT")
 
-# Whether to bump the logging level to ERRROR on the flask_appbiulder package
+# Whether to bump the logging level to ERROR on the flask_appbuilder package
 # Set to False if/when debugging FAB related issues like
 # permission management
 SILENCE_FAB = True
 
 # The link to a page containing common errors and their resolutions
 # It will be appended at the bottom of sql_lab errors.
-TROUBLESHOOTING_LINK = ''
+TROUBLESHOOTING_LINK = ""
 
 # CSRF token timeout, set to None for a token that never expires
 WTF_CSRF_TIME_LIMIT = 60 * 60 * 24 * 7
 
 # This link should lead to a page with instructions on how to gain access to a
 # Datasource. It will be placed at the bottom of permissions errors.
-PERMISSION_INSTRUCTIONS_LINK = ''
+PERMISSION_INSTRUCTIONS_LINK = ""
 
 # Integrate external Blueprints to the app by passing them to your
 # configuration. These blueprints will get integrated in the app
@@ -422,7 +529,7 @@ DASHBOARD_TEMPLATE_ID = None
 # username. The function receives the connection uri object, connection
 # params, the username, and returns the mutated uri and params objects.
 # Example:
-#   def DB_CONNECTION_MUTATOR(uri, params, username, security_manager):
+#   def DB_CONNECTION_MUTATOR(uri, params, username, security_manager, source):
 #       user = security_manager.find_user(username=username)
 #       if user and user.email:
 #           uri.username = user.email
@@ -438,31 +545,112 @@ DB_CONNECTION_MUTATOR = None
 #
 #    def SQL_QUERY_MUTATOR(sql, username, security_manager):
 #        dttm = datetime.now().isoformat()
-#        return "-- [SQL LAB] {username} {dttm}\n sql"(**locals())
+#        return f"-- [SQL LAB] {username} {dttm}\n{sql}"
 SQL_QUERY_MUTATOR = None
 
 # When not using gunicorn, (nginx for instance), you may want to disable
 # using flask-compress
 ENABLE_FLASK_COMPRESS = True
 
-try:
-    if CONFIG_PATH_ENV_VAR in os.environ:
-        # Explicitly import config module that is not in pythonpath; useful
-        # for case where app is being executed via pex.
-        print('Loaded your LOCAL configuration at [{}]'.format(
-            os.environ[CONFIG_PATH_ENV_VAR]))
+# Enable / disable scheduled email reports
+ENABLE_SCHEDULED_EMAIL_REPORTS = False
+
+# If enabled, certail features are run in debug mode
+# Current list:
+# * Emails are sent using dry-run mode (logging only)
+SCHEDULED_EMAIL_DEBUG_MODE = False
+
+# Email reports - minimum time resolution (in minutes) for the crontab
+EMAIL_REPORTS_CRON_RESOLUTION = 15
+
+# Email report configuration
+# From address in emails
+EMAIL_REPORT_FROM_ADDRESS = "reports@superset.org"
+
+# Send bcc of all reports to this address. Set to None to disable.
+# This is useful for maintaining an audit trail of all email deliveries.
+EMAIL_REPORT_BCC_ADDRESS = None
+
+# User credentials to use for generating reports
+# This user should have permissions to browse all the dashboards and
+# slices.
+# TODO: In the future, login as the owner of the item to generate reports
+EMAIL_REPORTS_USER = "admin"
+EMAIL_REPORTS_SUBJECT_PREFIX = "[Report] "
+
+# The webdriver to use for generating reports. Use one of the following
+# firefox
+#   Requires: geckodriver and firefox installations
+#   Limitations: can be buggy at times
+# chrome:
+#   Requires: headless chrome
+#   Limitations: unable to generate screenshots of elements
+EMAIL_REPORTS_WEBDRIVER = "firefox"
+
+# Window size - this will impact the rendering of the data
+WEBDRIVER_WINDOW = {"dashboard": (1600, 2000), "slice": (3000, 1200)}
+
+# Any config options to be passed as-is to the webdriver
+WEBDRIVER_CONFIGURATION = {}
+
+# The base URL to query for accessing the user interface
+WEBDRIVER_BASEURL = "http://0.0.0.0:8080/"
+
+# Send user to a link where they can report bugs
+BUG_REPORT_URL = None
+# Send user to a link where they can read more about Superset
+DOCUMENTATION_URL = None
+
+# What is the Last N days relative in the time selector to:
+# 'today' means it is midnight (00:00:00) in the local timezone
+# 'now' means it is relative to the query issue time
+# If both start and end time is set to now, this will make the time
+# filter a moving window. By only setting the end time to now,
+# start time will be set to midnight, while end will be relative to
+# the query issue time.
+DEFAULT_RELATIVE_START_TIME = "today"
+DEFAULT_RELATIVE_END_TIME = "today"
+
+# Configure which SQL validator to use for each engine
+SQL_VALIDATORS_BY_ENGINE = {"presto": "PrestoDBSQLValidator"}
+
+# Do you want Talisman enabled?
+TALISMAN_ENABLED = False
+# If you want Talisman, how do you want it configured??
+TALISMAN_CONFIG = {
+    "content_security_policy": None,
+    "force_https": True,
+    "force_https_permanent": False,
+}
+
+# URI to database storing the example data, points to
+# SQLALCHEMY_DATABASE_URI by default if set to `None`
+SQLALCHEMY_EXAMPLES_URI = None
+
+if CONFIG_PATH_ENV_VAR in os.environ:
+    # Explicitly import config module that is not necessarily in pythonpath; useful
+    # for case where app is being executed via pex.
+    try:
+        cfg_path = os.environ[CONFIG_PATH_ENV_VAR]
         module = sys.modules[__name__]
-        override_conf = imp.load_source(
-            'superset_config',
-            os.environ[CONFIG_PATH_ENV_VAR])
+        override_conf = imp.load_source("superset_config", cfg_path)
         for key in dir(override_conf):
             if key.isupper():
                 setattr(module, key, getattr(override_conf, key))
 
-    else:
-        from superset_config import *  # noqa
-        import superset_config
-        print('Loaded your LOCAL configuration at [{}]'.format(
-            superset_config.__file__))
-except ImportError:
-    pass
+        print(f"Loaded your LOCAL configuration at [{cfg_path}]")
+    except Exception:
+        logging.exception(
+            f"Failed to import config for {CONFIG_PATH_ENV_VAR}={cfg_path}"
+        )
+        raise
+elif importlib.util.find_spec("superset_config"):
+    try:
+        from superset_config import *  # noqa pylint: disable=import-error
+        import superset_config  # noqa pylint: disable=import-error
+
+        print(f"Loaded your LOCAL configuration at [{superset_config.__file__}]")
+    except Exception:
+        logging.exception("Found but failed to import local superset_config")
+        raise
+
